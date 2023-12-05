@@ -1,11 +1,5 @@
 """
-Script to change settings
-
-# todo
-1. sizes of the box for kmc.
-2. correct EA of the dopant molecule.
-maybe set reorganization energy. no, this is not relevant.
-# lambda is not laambda. thois is the geometry relaxation energy
+Script to change lightforge settings and copy over necessary files
 
 """
 import ast
@@ -37,8 +31,9 @@ QP_SIM_PATH = BASE_PATH / 'qp/sim'
 PARA_SIM_PATH = BASE_PATH / 'para/sim'
 DEPO_SIM_PATH = BASE_PATH / 'depo/sim'
 # QP_SIM_PATH = BASE_PATH / 'light/setup/fake_ipea_output'
-MATERIALS = ['aNPD', 'BFDPB', 'BPAPF',
-             'TCTA']  # names of simulations folder whatever was simulated: disorder / ipea / vc. todo: weak point.
+MATERIALS = ['aNPD', 'BFDPB', 'BPAPF','TCTA']
+MATERIALS = ['BPAPF','TCTA']
+# names of simulations folder whatever was simulated: disorder / ipea / vc. todo: weak point.
 LF_SETTINGS_TMPL_PATH = LF_SETUP_PATH / 'lf_settings_tmpl/settings.yml'
 REORGANIZATION_ENERGIES = PARA_SIM_PATH / 'lambda/reorganization_energies.csv'
 
@@ -48,7 +43,12 @@ MAP_MATERIAL_TO_HOST_DOPANT_NAME = {
     'BPAPF': ('BPAPF', 'C60F48'),
     'TCTA': ('TCTA', 'C60F48')
 }
+VC_NAME = 'vc_new_after_dr_0.0.csv'
+# todo: 1. name is verbose. change in qp code base.
+#  2. location will be different if generated from within QP.
+#  3. the vc computed for 50 pairs with b3lyp is somewhere else.
 
+COM_NAME = 'COM.dat'
 
 def main():
     for material in MATERIALS:
@@ -72,6 +72,7 @@ def main():
         create_sim_dir(material)
         copy_settings_to_sim(material)
         copy_vc_to_sim(material)
+        copy_com_to_sim(material)
         # host_dopant_uuids_and_dmr_and_hmr = return_host_dopant_uuid(material)  # old useless implementation.
         # classes
         # host / dopant molecules are being initialed here based on the structure which is
@@ -99,14 +100,11 @@ def main():
             change_settings.set_host_dopant_uuid()
             change_settings.set_disorder(source='SystemAnalysis')
             change_settings.set_ip_ea_eps(adiabatic_energies=True)
-            change_settings.set_morphology_size()
+            change_settings.set_morphology_size(pbc=False)
             # (3) todo: change concentration of the dopant, or maybe not required.
 
             # 
             logging.info(f"Completed processing for material: {material}\n{'-' * 50}")
-
-        # todo: copy vc over
-        # todo: neighbours =150 seems to much!!!
 
 
 class lazy_property:
@@ -173,7 +171,10 @@ class DepositOutput:
             x *= 3
             y *= 3
 
-        infilename = DEPO_SIM_PATH / self.material / 'structurePBC.cml'
+        if self.PBC:
+            infilename = DEPO_SIM_PATH / self.material / 'structurePBC.cml'  # todo: this has to be defined above as consts
+        else:
+            infilename = DEPO_SIM_PATH / self.material / 'structure.cml'  # todo: this has to be defined above as consts
         system = parse_system(infilename)
 
         # Compute atomic coordinates size
@@ -254,8 +255,8 @@ def copy_vc_to_sim(material: str):
     Copy `vc.csv` to the simulation directory of the given material.
     `vc.csv` contains data on Coulomb binding energy typically between host and dopant.
     """
-    source_path = QP_SIM_PATH / QuantumPatchOutputType.VC.value / material
-    destination_path = LF_SIM_PATH / material
+    source_path = QP_SIM_PATH / QuantumPatchOutputType.VC.value / material / 'vc_new_after_dr_0.0.csv'
+    destination_path = LF_SIM_PATH / material / 'vc.csv'
     try:
         shutil.copy2(source_path, destination_path)
         logging.info(f"Data on VC for material {material}, `vc`, is copied over to {destination_path}")
@@ -264,6 +265,20 @@ def copy_vc_to_sim(material: str):
     except Exception as e:
         logging.error("Unexpected error:", exc_info=e)
 
+
+def copy_com_to_sim(material: str):
+    """
+    Copy `com.csv` to the simulation directory of the given material.
+    """
+    source_path = QP_SIM_PATH / QuantumPatchOutputType.DISORDER.value / material / 'Analysis/files_for_kmc/COM.dat'
+    destination_path = LF_SIM_PATH / material / 'COM.dat'
+    try:
+        shutil.copy2(source_path, destination_path)
+        logging.info(f"Data COM.dat for material {material}, is copied over to {destination_path}")
+    except IOError as e:
+        logging.error(f"Unable to copy file. {e}")
+    except Exception as e:
+        logging.error("Unexpected error:", exc_info=e)
 
 class MoleculeType(Enum):
     HOST = 'host'
@@ -593,11 +608,34 @@ class ChangeLightforgeSettings:
         """
         Lazy property to determine the index of the dopant in the material settings list.
         """
-        for index, material_settings in enumerate(self.settings['materials']):
-            if material_settings['molecule_parameters']['is_dopant']:
-                return index
-        logging.error("Dopant not found in material settings.")
-        raise ValueError("Dopant not found in material settings.")
+        # com_data_path = self.qp_outputs.disorder.files_for_kmc_path / 'COM.dat'
+        # with open(com_data_path) as fid:
+        #     first_line = fid.readline().strip()
+        # id_of_the_first_com_mol = int(first_line[3])
+        # <-- MAY BE NEEDED!
+
+        mol_type_names_path = self.qp_outputs.disorder.files_for_kmc_path / 'mol_type_names.dat'
+        # breakpoint()
+        with open(mol_type_names_path) as fid:
+            mol_names = fid.read().splitlines()
+
+        if mol_names[0] == self.dopant.uuid and mol_names[1] == self.host.uuid:
+            self.settings['materials'][0]['molecule_parameters']['is_dopant'] = True  # todo do not do it here.
+            self.settings['materials'][1]['molecule_parameters']['is_dopant'] = False
+            self.settings['materials'][0]['name'] = 'dopant'
+            self.settings['materials'][1]['name'] = 'host'
+            logging.info("Dopant id is identified from mol_type_names.dat: 0")
+            return 0
+        elif mol_names[1] == self.dopant.uuid and mol_names[0] == self.host.uuid:
+            self.settings['materials'][1]['molecule_parameters']['is_dopant'] = True
+            self.settings['materials'][0]['molecule_parameters']['is_dopant'] = False
+            self.settings['materials'][1]['name'] = 'dopant'
+            self.settings['materials'][0]['name'] = 'host'
+            logging.info("Dopant id is identified from mol_type_names.dat: 1")
+            return 1
+        else:
+            sys.exit("Host and dopant names do not match to previously extracted. Exiting ... ")
+
 
     def set_host_dopant_uuid(self):
         """
@@ -605,6 +643,9 @@ class ChangeLightforgeSettings:
         """
         self.settings['materials'][self.host_index]['molecule_parameters']['custom_hash'] = self.host.uuid
         self.settings['materials'][self.dopant_index]['molecule_parameters']['custom_hash'] = self.dopant.uuid
+
+
+
 
         logging.info(
             f"Host UUID set to {self.host.uuid}, "
@@ -639,8 +680,8 @@ class ChangeLightforgeSettings:
         host_energies_list[1] = list(host_disorder)
         dopant_energies_list[1] = list(dopant_disorder)
 
-        host_energies_str = self.convert_list_to_string(host_energies_list)
-        dopant_energies_str = self.convert_list_to_string(dopant_energies_list)
+        host_energies_str = self.convert_list_to_string_with_brackets(host_energies_list)
+        dopant_energies_str = self.convert_list_to_string_with_brackets(dopant_energies_list)
 
         self.settings['materials'][self.host_index]['molecule_parameters']['energies'] = host_energies_str
         self.settings['materials'][self.dopant_index]['molecule_parameters']['energies'] = dopant_energies_str
@@ -660,8 +701,13 @@ class ChangeLightforgeSettings:
             return None
 
     @staticmethod
-    def convert_list_to_string(lst):
+    def convert_list_to_string_with_brackets(lst):
         return str(lst)
+
+    @staticmethod
+    def convert_list_to_string_no_brackets(lst):
+        str_list = [str(element) for element in lst]
+        return ' '.join(str_list)
 
     def set_ip_ea_eps(self, adiabatic_energies=False):
         """
@@ -705,8 +751,8 @@ class ChangeLightforgeSettings:
         host_energies_list[0] = list(host_ip_ea)
         dopant_energies_list[0] = list(dopant_ip_ea)
 
-        host_energies_str = self.convert_list_to_string(host_energies_list)
-        dopant_energies_str = self.convert_list_to_string(dopant_energies_list)
+        host_energies_str = self.convert_list_to_string_with_brackets(host_energies_list)
+        dopant_energies_str = self.convert_list_to_string_with_brackets(dopant_energies_list)
 
         self.settings['materials'][self.host_index]['molecule_parameters']['energies'] = host_energies_str
         self.settings['materials'][self.dopant_index]['molecule_parameters']['energies'] = dopant_energies_str
@@ -721,16 +767,26 @@ class ChangeLightforgeSettings:
             f"for material {self.material}"
         )
 
-    def set_morphology_size(self):
-        print("Hey!")
-
+    def set_morphology_size(self, pbc=False):
+        """
+        sets the size of the morphology.
+        2 x redundant in LF + in x-dim 1 x redundant => set in 3 places
+        :return:
+        """
         box = self.depo_output
+        box.PBC = pbc
 
         # self.settings['layers']['dimensions']  todo ask Franz if not used??
         # self.settings['layers']['thickness']  todo same
-        self.settings['dimensions'] = [float(box.z/10.0), float(box.x/10.0), float(box.y/10.0)]  # z -> x -> y
+
+        self.settings['dimensions'] = [float(box.z/10.0), float(box.x/10.0), float(box.y/10.0)]  # z -> x -> y [nm]
+
+        self.settings['layers'][0]['box1']['dimensions'] = self.convert_list_to_string_no_brackets(self.settings['dimensions'])
+
+        self.settings['layers'][0]['thickness'] = float(box.z/10.0)
+
         logging.info("Setting morphology size:")
-        logging.info(f"\tsettings:dimensions are set to {box.x/10.0, box.y/10.0, box.z/10.0} nm. ")
+        logging.info(f"\tsettings:dimensions (x, y, z) are set to {box.z/10.0, box.x/10.0, box.y/10.0} nm. ")
 
 
 if __name__ == '__main__':
