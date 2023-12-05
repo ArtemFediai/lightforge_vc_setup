@@ -31,8 +31,8 @@ QP_SIM_PATH = BASE_PATH / 'qp/sim'
 PARA_SIM_PATH = BASE_PATH / 'para/sim'
 DEPO_SIM_PATH = BASE_PATH / 'depo/sim'
 # QP_SIM_PATH = BASE_PATH / 'light/setup/fake_ipea_output'
-MATERIALS = ['aNPD', 'BFDPB', 'BPAPF','TCTA']
-MATERIALS = ['BPAPF','TCTA']
+MATERIALS = ['aNPD', 'BFDPB', 'BPAPF', 'TCTA']
+MATERIALS = ['BPAPF', 'TCTA']
 # names of simulations folder whatever was simulated: disorder / ipea / vc. todo: weak point.
 LF_SETTINGS_TMPL_PATH = LF_SETUP_PATH / 'lf_settings_tmpl/settings.yml'
 REORGANIZATION_ENERGIES = PARA_SIM_PATH / 'lambda/reorganization_energies.csv'
@@ -49,6 +49,7 @@ VC_NAME = 'vc_new_after_dr_0.0.csv'
 #  3. the vc computed for 50 pairs with b3lyp is somewhere else.
 
 COM_NAME = 'COM.dat'
+
 
 def main():
     for material in MATERIALS:
@@ -96,7 +97,8 @@ def main():
 
         depo_output = DepositOutput(material)
 
-        with ChangeLightforgeSettings(material, host_molecule, dopant_molecule, qp_outputs, depo_output) as change_settings:
+        with ChangeLightforgeSettings(material, host_molecule, dopant_molecule, qp_outputs,
+                                      depo_output) as change_settings:
             change_settings.set_host_dopant_uuid()
             change_settings.set_disorder(source='SystemAnalysis')
             change_settings.set_ip_ea_eps(adiabatic_energies=True)
@@ -187,6 +189,7 @@ class DepositOutput:
         logging.info(f"Size of kMC morphology: {x}, {y}, {z}")
 
         return x, y, z
+
 
 @dataclass
 class LambdaOutput:
@@ -279,6 +282,7 @@ def copy_com_to_sim(material: str):
         logging.error(f"Unable to copy file. {e}")
     except Exception as e:
         logging.error("Unexpected error:", exc_info=e)
+
 
 class MoleculeType(Enum):
     HOST = 'host'
@@ -593,59 +597,52 @@ class ChangeLightforgeSettings:
         logging.info("settings.yaml file was successfully changed")
 
     @lazy_property
+    def host_dopant_order(self):
+        mol_type_names_path = self.qp_outputs.disorder.files_for_kmc_path / 'mol_type_names.dat'
+        with open(mol_type_names_path) as fid:
+            mol_names = fid.read().splitlines()
+
+        if mol_names[0] == self.dopant.uuid and mol_names[1] == self.host.uuid:
+            dopant_index, host_index = 0, 1
+        elif mol_names[1] == self.dopant.uuid and mol_names[0] == self.host.uuid:
+            dopant_index, host_index = 1, 0
+        else:
+            sys.exit("Host and dopant names do not match to previously extracted. Exiting ... ")
+
+        return dopant_index, host_index
+
+    @lazy_property
     def host_index(self):
         """
         Lazy property to determine the index of the host in the material settings list.
         """
-        for index, material_settings in enumerate(self.settings['materials']):
-            if not material_settings['molecule_parameters']['is_dopant']:
-                return index
-        logging.error("Host not found in material settings.")
-        raise ValueError("Host not found in material settings.")
+        _, host_index = self.host_dopant_order
+        logging.info(f"Host id is identified from mol_type_names.dat: {host_index}")
+        return host_index
 
     @lazy_property
     def dopant_index(self):
         """
         Lazy property to determine the index of the dopant in the material settings list.
         """
-        # com_data_path = self.qp_outputs.disorder.files_for_kmc_path / 'COM.dat'
-        # with open(com_data_path) as fid:
-        #     first_line = fid.readline().strip()
-        # id_of_the_first_com_mol = int(first_line[3])
-        # <-- MAY BE NEEDED!
-
-        mol_type_names_path = self.qp_outputs.disorder.files_for_kmc_path / 'mol_type_names.dat'
-        # breakpoint()
-        with open(mol_type_names_path) as fid:
-            mol_names = fid.read().splitlines()
-
-        if mol_names[0] == self.dopant.uuid and mol_names[1] == self.host.uuid:
-            self.settings['materials'][0]['molecule_parameters']['is_dopant'] = True  # todo do not do it here.
-            self.settings['materials'][1]['molecule_parameters']['is_dopant'] = False
-            self.settings['materials'][0]['name'] = 'dopant'
-            self.settings['materials'][1]['name'] = 'host'
-            logging.info("Dopant id is identified from mol_type_names.dat: 0")
-            return 0
-        elif mol_names[1] == self.dopant.uuid and mol_names[0] == self.host.uuid:
-            self.settings['materials'][1]['molecule_parameters']['is_dopant'] = True
-            self.settings['materials'][0]['molecule_parameters']['is_dopant'] = False
-            self.settings['materials'][1]['name'] = 'dopant'
-            self.settings['materials'][0]['name'] = 'host'
-            logging.info("Dopant id is identified from mol_type_names.dat: 1")
-            return 1
-        else:
-            sys.exit("Host and dopant names do not match to previously extracted. Exiting ... ")
-
+        dopant_index, _ = self.host_dopant_order
+        logging.info(f"Dopant id is identified from mol_type_names.dat: {dopant_index}")
+        return dopant_index
 
     def set_host_dopant_uuid(self):
         """
         Set host and dopant UUIDs in the settings.
+        Besides (sorry for naming), it sets:
+         1. "is_dopant" flag for both
+         2. "name" for both.
         """
         self.settings['materials'][self.host_index]['molecule_parameters']['custom_hash'] = self.host.uuid
         self.settings['materials'][self.dopant_index]['molecule_parameters']['custom_hash'] = self.dopant.uuid
 
-
-
+        self.settings['materials'][self.dopant_index]['molecule_parameters']['is_dopant'] = True
+        self.settings['materials'][self.host_index]['molecule_parameters']['is_dopant'] = False
+        self.settings['materials'][self.dopant_index]['name'] = 'dopant'
+        self.settings['materials'][self.host_index]['name'] = 'host'
 
         logging.info(
             f"Host UUID set to {self.host.uuid}, "
@@ -779,14 +776,16 @@ class ChangeLightforgeSettings:
         # self.settings['layers']['dimensions']  todo ask Franz if not used??
         # self.settings['layers']['thickness']  todo same
 
-        self.settings['dimensions'] = [float(box.z/10.0), float(box.x/10.0), float(box.y/10.0)]  # z -> x -> y [nm]
+        self.settings['dimensions'] = [float(box.z / 10.0), float(box.x / 10.0),
+                                       float(box.y / 10.0)]  # z -> x -> y [nm]
 
-        self.settings['layers'][0]['box1']['dimensions'] = self.convert_list_to_string_no_brackets(self.settings['dimensions'])
+        self.settings['layers'][0]['box1']['dimensions'] = self.convert_list_to_string_no_brackets(
+            self.settings['dimensions'])
 
-        self.settings['layers'][0]['thickness'] = float(box.z/10.0)
+        self.settings['layers'][0]['thickness'] = float(box.z / 10.0)
 
         logging.info("Setting morphology size:")
-        logging.info(f"\tsettings:dimensions (x, y, z) are set to {box.z/10.0, box.x/10.0, box.y/10.0} nm. ")
+        logging.info(f"\tsettings:dimensions (x, y, z) are set to {box.z / 10.0, box.x / 10.0, box.y / 10.0} nm. ")
 
 
 if __name__ == '__main__':
