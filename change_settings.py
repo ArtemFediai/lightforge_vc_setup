@@ -1,5 +1,8 @@
 """
 Script to change lightforge settings and copy over necessary files
+todo: results/experiments/particle_densities/all_data_points/ion_dopants_0.dat
+this is where doping is computed.
+ion_dop = second / first line.
 
 """
 import ast
@@ -104,7 +107,7 @@ def main():
                                       depo_output) as change_settings:
             change_settings.set_host_dopant_uuid()
             change_settings.set_disorder(source='SystemAnalysis')
-            change_settings.set_ip_ea_eps(adiabatic_energies=True)
+            change_settings.set_ip_ea_eps(adiabatic_energies=True, manual_dopant_ea=5.5, manual_host_ip=5.3)
             change_settings.set_morphology_size(pbc=False)
             # (3) todo: change concentration of the dopant, or maybe not required.
 
@@ -738,63 +741,63 @@ class ChangeLightforgeSettings:
         str_list = [str(element) for element in lst]
         return ' '.join(str_list)
 
-    def set_ip_ea_eps(self, adiabatic_energies=False):
-        """
-        if adiabatic_energies, these will be extracted from the host and dopant molecules.
-        """
 
+
+    def set_ip_ea_eps(self, adiabatic_energies=False, manual_host_ip=None, manual_host_ea=None,
+                          manual_dopant_ip=None, manual_dopant_ea=None):
+        """
+        Set IP and EA for host and dopant, with an option to manually specify these values.
+
+        :param adiabatic_energies: If True, use adiabatic energies.
+        :param manual_host_ip: Manually specified IP for the host.
+        :param manual_host_ea: Manually specified EA for the host.
+        :param manual_dopant_ip: Manually specified IP for the dopant.
+        :param manual_dopant_ea: Manually specified EA for the dopant.
+        """
         ipea_data = self.qp_outputs.ipea
 
-        host_ip_ea = [ipea_data.get_ip(self.host.uuid), -ipea_data.get_ea(self.host.uuid)]
-        dopant_ip_ea = [ipea_data.get_ip(self.dopant.uuid),
-                        -ipea_data.get_ea(self.dopant.uuid)]  # minus because EA from the output has wrong sign
+        # Use manual values if provided, otherwise get from ipea_data
+        host_ip = manual_host_ip if manual_host_ip is not None else ipea_data.get_ip(self.host.uuid)
+        host_ea = manual_host_ea if manual_host_ea is not None else -ipea_data.get_ea(self.host.uuid)
+        dopant_ip = manual_dopant_ip if manual_dopant_ip is not None else ipea_data.get_ip(self.dopant.uuid)
+        dopant_ea = manual_dopant_ea if manual_dopant_ea is not None else -ipea_data.get_ea(self.dopant.uuid)
 
+        # Apply adiabatic correction if needed
         if adiabatic_energies:
-            logging.info("adiabatic_energies option is set for IP and EA.")
+            host_ip -= self.host.lambda_ip
+            host_ea += self.host.lambda_ea
+            dopant_ip -= self.dopant.lambda_ip
+            dopant_ea += self.dopant.lambda_ea
 
-            logging.info(
-                f"adiabatic host ip: {host_ip_ea[0] - self.host.lambda_ip} = {host_ip_ea[0]} - {self.host.lambda_ip}")
-            logging.info(
-                f"adiabatic host ea: {host_ip_ea[1] + self.host.lambda_ea} = {host_ip_ea[1]} + {self.host.lambda_ea}")
-            logging.info(
-                f"adiabatic dopant ip: {dopant_ip_ea[0] - self.dopant.lambda_ip} = {dopant_ip_ea[0]} - {self.dopant.lambda_ip}")
-            logging.info(
-                f"adiabatic dopant ea: {dopant_ip_ea[1] + self.dopant.lambda_ea} = {dopant_ip_ea[1]} + {self.dopant.lambda_ea}")
+        host_ip_ea = [host_ip, host_ea]
+        dopant_ip_ea = [dopant_ip, dopant_ea]
 
-            host_ip_ea[0] -= self.host.lambda_ip
-            host_ip_ea[1] += self.host.lambda_ea
-            dopant_ip_ea[0] -= self.dopant.lambda_ip
-            dopant_ip_ea[1] += self.dopant.lambda_ea
+        eps = 0.5 * (ipea_data.get_epsilon(self.host.uuid) + ipea_data.get_epsilon(self.dopant.uuid))
 
-        eps = 0.5 * (ipea_data.get_epsilon(self.host.uuid) + ipea_data.get_epsilon(
-            self.dopant.uuid))  # mean eps. formally, these must be the same
+        # Retrieve existing lambda and disorder values from settings
+        host_energies = self.convert_string_to_list(
+            self.settings['materials'][self.host_index]['molecule_parameters']['energies'])
+        dopant_energies = self.convert_string_to_list(
+            self.settings['materials'][self.dopant_index]['molecule_parameters']['energies'])
 
-        host_energies_str = self.settings['materials'][self.host_index]['molecule_parameters']['energies']
-        dopant_energies_str = self.settings['materials'][self.dopant_index]['molecule_parameters']['energies']
+        # Update settings with IP/EA, disorder, and lambda values
+        host_energies[0] = host_ip_ea
+        dopant_energies[0] = dopant_ip_ea
 
-        host_energies_list = self.convert_string_to_list(host_energies_str)
-        dopant_energies_list = self.convert_string_to_list(dopant_energies_str)
-        # [[orbitals], [disorder], [lambda]]
-        # [ 0              1          2    ]
-
-        host_energies_list[0] = list(host_ip_ea)
-        dopant_energies_list[0] = list(dopant_ip_ea)
-
-        host_energies_str = self.convert_list_to_string_with_brackets(host_energies_list)
-        dopant_energies_str = self.convert_list_to_string_with_brackets(dopant_energies_list)
+        host_energies_str = self.convert_list_to_string_with_brackets(host_energies)
+        dopant_energies_str = self.convert_list_to_string_with_brackets(dopant_energies)
 
         self.settings['materials'][self.host_index]['molecule_parameters']['energies'] = host_energies_str
         self.settings['materials'][self.dopant_index]['molecule_parameters']['energies'] = dopant_energies_str
-
-        # eps:
         self.settings['epsilon_material'] = eps
 
         logging.info(
             f"Host IP/EA set to {host_ip_ea}, "
             f"Dopant IP/EA set to {dopant_ip_ea} "
-            f"Dielectric permittivity set to {eps}"
+            f"Dielectric permittivity set to {eps} "
             f"for material {self.material}"
         )
+
 
     def set_morphology_size(self, pbc=False):
         """
@@ -879,8 +882,8 @@ def compute_and_log_molecule_parameters(host_molecule, dopant_molecule, qp_outpu
     """
     Compute parameters for host and dopant molecules and log them in a table format.
     """
-
-    decimal_points = 3  # todo hard-coded
+    # todo: IP/EA if manually set will not be correct here. Read everything from the setting file!
+    decimal_points = 3
 
     # Extract disorder from FILES_FOR_KMC source
     host_disorder = qp_outputs.disorder.query_disorder_from_system_analysis(host_molecule.uuid)  # todo careful
