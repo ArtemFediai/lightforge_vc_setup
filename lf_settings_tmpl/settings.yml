@@ -1,0 +1,188 @@
+ML_energy_environment: false
+analyse_doping:
+  analyse_ion_dop: true
+autorun_start: 0.5
+connect_electrodes: false
+continue_run: false
+coulomb_autorun_iter: 10
+coulomb_correction: true
+polarization_correction: false
+coulomb_correction_mode: QP_csv_file
+CT_file: myvc.csv  # this does not work so far
+coulomb_mesh: false
+ct_rate_memory_multiplier: 2.0
+current_analysis:
+  x_axis:
+    Temperature: true
+    field_strength: false
+  y_axis:
+    current_density: false
+    ion_doping: true
+    mobility: false
+damping_activation_threshold: 0.1
+device_layout: stack
+dimensions:  # have to be computed from the deposit simulations. y and z should be the same. 1 nm on top of the mophology.
+- 29.0
+- 18.0
+- 18.0
+distance_epsilon: false
+doping: true
+doping_regeneration_steps: 30
+dos:
+  analyse_dos: true
+  get_hole_transport_level: true
+  plot_host_only: false
+  yscale: log
+electrode_stack_distance: 0.8
+electrodes:
+- coupling_model: QP_output
+  electrode_center: -0.5 0 0
+  electrode_coupling: 0.001
+  electrode_coupling_file: J_electrode_0.dat
+  electrode_dimensions: 10 10
+  electrode_norm_vector: 1 0 0
+  electrode_wf_decay_length: 0.3
+  electrode_workfunction: -5.0
+- coupling_model: QP_output
+  electrode_center: 10.5 0 0
+  electrode_coupling: 0.001
+  electrode_coupling_file: J_electrode_1.dat
+  electrode_dimensions: 10 10
+  electrode_norm_vector: -1 0 0
+  electrode_wf_decay_length: 0.3
+  electrode_workfunction: -5.0
+epsilon_material: 2.7
+excitonics: no excitons
+expansion_scheme: no expansion
+experiments:
+- Temperature: [300]
+  field_direction: 1 0 0
+  field_strength: 0.000000001
+  initial_electrons: 0
+  initial_holes: 0
+  measurement: DC  # todo maybe remove
+  simulations: 1
+friction: 0.1
+global_xy_dimension: true
+image_charges: 0
+irradiance: 0.0
+iv_fluctuation: 0.05  # todo: check that this is not used
+jump_tacker_update_iter: 2000
+layers:
+- box1:
+    morphology file: COM.dat  # from files_from_kmc.zip
+  dimensions: 29.0 18.0 18.0
+  gsp: 0.0
+  layer_center: 0 0 0
+  molecule_species:
+  - concentration: 0.9990574696738285
+    material: host
+  - concentration: 0.0009425303261714897
+    material: dopant
+  morphology_input_mode: 'custom Files: morphology'
+  morphology_source: stochastic_extension # it is not used
+  thickness: 29.0
+light_off_time: 0.01
+light_on_time: 1.0e-08
+materials:
+- input_mode_transport: 'PAR: eaip,sig,l'
+  molecule_parameters:
+    QP_output_sigma: DisorderJs
+    energies: '[ [ 9.07609078866517 , 5.3 ] , [ 0.1  , 0.12474571039077204 ] , [  0.2
+      , 0.15558047000085934 ] ] '
+    exciton preset: doping
+    is_dopant: true
+    molecule_pdb: dopant.pdb  # todo: have this by hand
+  name: dopant
+- input_mode_transport: 'PAR: eaip,sig,l'
+  molecule_parameters:
+    QP_output_sigma: DisorderJs
+    energies: '[ [  5.5, 0.7839573173712232] , [ 0.1054 ,  0.1 ] , [  0.14466466, 0.2 ] ] '
+    exciton preset: doping
+    is_dopant: false
+    molecule_pdb: host.pdb  # todo: have this by hand
+    custom_hash: f273d730b77306e88fc77abb9fa56671  
+  name: host
+max_bond_noise: 0.85
+max_damp_factor: 0.1
+max_iterations: 10000000000
+max_time: 1.0e10
+neighbours: 50
+new_wano: true
+noise_damping: false
+pair_input:
+- molecule 1: host
+  molecule 2: host
+  transfer_integral_parameters:
+    Dexter_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+    electron_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+    hole_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+  QP_output_coulomb: CT
+  QP_output_coulomb_EAIP: EAIP
+- molecule 1: host
+  molecule 2: dopant
+  transfer_integral_parameters:
+    Dexter_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+    electron_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+    hole_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+  QP_output_coulomb: CT
+  QP_output_coulomb_EAIP: EAIP
+- molecule 1: dopant
+  molecule 2: dopant
+  transfer_integral_parameters:
+    Dexter_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+    electron_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+    hole_transfer_integrals:
+      maximum_ti: 0.003
+      wf_decay_length: 0.0
+  QP_output_coulomb: CT
+  QP_output_coulomb_EAIP: EAIP
+particles:
+  electrons: true
+  excitons: true
+  holes: true
+pbc:  # todo: is m. from kmc rotated? set 'z' direction to false?
+- false  # x is Deposit's z direction.
+- true
+- true
+r_cut_QP: 25  # [A] trying to get data from VC points from QP calculations.
+rate_scaling:
+  charge_injection: 1.0
+  dexter_spinflip: 1.0
+  exciton_separation: 1.0
+  ptq: 1.0
+rates: mixed-marcus
+recursive_neighbours: 18
+reset_random_numbers: 800000
+scaling:
+- None
+screening_length: 1.3
+set_pbc: manual
+std_scale: -0.2
+superexchange: false
+td_scaling: 0.4
+ti_damping: false
+ti_prune: true
+ti_prune_cutoff: 1.0e-05
+track_exciton_lifecycle: false
+transfer_integral_file: transfer_integral_file.dat
+transfer_integral_source: Miller-Abrahams  # todo check spelling. exp_decay?
+tta_rate: Miller
+skip_material_plots: 
+  all: True
