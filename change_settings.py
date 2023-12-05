@@ -30,7 +30,6 @@ QP_SETUP_PATH = BASE_PATH / 'qp/set_up'
 QP_SIM_PATH = BASE_PATH / 'qp/sim'
 PARA_SIM_PATH = BASE_PATH / 'para/sim'
 DEPO_SIM_PATH = BASE_PATH / 'depo/sim'
-# QP_SIM_PATH = BASE_PATH / 'light/setup/fake_ipea_output'
 MATERIALS = ['aNPD', 'BFDPB', 'BPAPF', 'TCTA']
 MATERIALS = ['BPAPF', 'TCTA']
 # names of simulations folder whatever was simulated: disorder / ipea / vc. todo: weak point.
@@ -43,12 +42,15 @@ MAP_MATERIAL_TO_HOST_DOPANT_NAME = {
     'BPAPF': ('BPAPF', 'C60F48'),
     'TCTA': ('TCTA', 'C60F48')
 }
-VC_NAME = 'vc_new_after_dr_0.0.csv'
+
+VC_NAME = 'vc_new_after_dr_0.0.csv'  # this will be taken from the
 # todo: 1. name is verbose. change in qp code base.
 #  2. location will be different if generated from within QP.
 #  3. the vc computed for 50 pairs with b3lyp is somewhere else.
+COM_NAME = 'COM.dat'  # always from the disorder simulations of QP. maybe set an explicit path.
 
-COM_NAME = 'COM.dat'
+# this is something different because it is intended to submit the script:
+SUBMIT_FILE = '/hkfs/work/workspace/scratch/nz8308-VC/vdw_materials/light/setup/submitQP_hk'
 
 
 def main():
@@ -68,12 +70,13 @@ def main():
         - 2 component systems.
         """
 
-        logging.info(f"\n{'=' * 50}\nProcessing material: {material}\n{'=' * 50}")
+        logging.info(f"\n\n{'=' * 50}\n\tProcessing material: {material}\n{'=' * 50}\n")
         # todo name `material` is misleading. This is just the name of the folder. Or material identificator. It looks as if it is some complex object. But it is a string.
         create_sim_dir(material)
         copy_settings_to_sim(material)
         copy_vc_to_sim(material)
         copy_com_to_sim(material)
+        modify_and_copy_submit_script(material)
         # host_dopant_uuids_and_dmr_and_hmr = return_host_dopant_uuid(material)  # old useless implementation.
         # classes
         # host / dopant molecules are being initialed here based on the structure which is
@@ -81,7 +84,7 @@ def main():
                                                                       return_as='Molecule',
                                                                       dump=True)
         for mol in (host_molecule, dopant_molecule):
-            mol.add_reorganization_energy(material)  # mol knows, if it is host or dopant. 
+            mol.add_reorganization_energy(material)  # mol knows, if it is host or dopant.
 
         #  all qps outputs
         QPO = QuantumPatchOutputType  # short
@@ -107,6 +110,10 @@ def main():
 
             # 
             logging.info(f"Completed processing for material: {material}\n{'-' * 50}")
+
+        compute_and_log_molecule_parameters(host_molecule, dopant_molecule, qp_outputs)
+
+        log_folder_structure(LF_SIM_PATH / material)
 
 
 class lazy_property:
@@ -282,6 +289,31 @@ def copy_com_to_sim(material: str):
         logging.error(f"Unable to copy file. {e}")
     except Exception as e:
         logging.error("Unexpected error:", exc_info=e)
+
+
+def modify_and_copy_submit_script(material):
+    """
+    Modify the Slurm submit script to change the job name to the given material and copy it to the simulation directory.
+    Uses global constants (SUBMIT_FILE etc.) for source and destination paths.
+    """
+    source_path = SUBMIT_FILE
+    filename = os.path.basename(SUBMIT_FILE)
+    destination_path = LF_SIM_PATH / material / filename
+
+    try:
+        with open(source_path, 'r') as file:
+            content = file.readlines()
+
+        modified_content = [line if not line.startswith('#SBATCH -J') else f'#SBATCH -J {material}\n' for line in
+                            content]
+
+        with open(destination_path, 'w') as file:
+            file.writelines(modified_content)
+
+        logging.info(f"Submit script for material {material} is modified and copied to {destination_path}")
+    except IOError as e:
+        logging.error(f"Unable to modify or copy the submit script. {e}")
+        raise
 
 
 class MoleculeType(Enum):
@@ -693,9 +725,9 @@ class ChangeLightforgeSettings:
     def convert_string_to_list(string):
         try:
             return ast.literal_eval(string)
-        except ValueError:
-            print("Error: The string could not be converted to a list.")
-            return None
+        except ValueError as e:
+            logging.error(f"Error converting string to list: {e}")
+            sys.exit(f"Fatal error: unable to convert string to list. Exiting program.")
 
     @staticmethod
     def convert_list_to_string_with_brackets(lst):
@@ -786,6 +818,103 @@ class ChangeLightforgeSettings:
 
         logging.info("Setting morphology size:")
         logging.info(f"\tsettings:dimensions (x, y, z) are set to {box.z / 10.0, box.x / 10.0, box.y / 10.0} nm. ")
+
+
+# todo make a separate module out of it.
+def log_folder_structure(startpath):
+    startpath_str = str(startpath)  # Convert PosixPath to string
+    for root, dirs, files in os.walk(startpath_str, topdown=True):
+        level = root.replace(startpath_str, '').count(os.sep)
+        indent = '│   ' * level + '├── '
+
+        if level == 0:
+            logging.info(f"{os.path.basename(root)}/")
+        else:
+            logging.info(f"{indent[:-4]}└── {os.path.basename(root)}/")
+
+        subindent = '│   ' * (level + 1) + '├── '
+        for f in files:
+            logging.info(f"{subindent}{f}")
+
+
+def log_parameters_as_table(host_params, dopant_params):
+    """
+    Log the parameters for host and dopant in a table-like format.
+
+    :param host_params: Dictionary of parameters for the host.
+    :param dopant_params: Dictionary of parameters for the dopant.
+    """
+    # Define the header
+    header = "| Parameter     | Host Value                    | Dopant Value                   |"
+    separator = "+---------------+-------------------------------+-------------------------------+"
+
+    # Log the header and separator
+    logging.info(separator)
+    logging.info(header)
+    logging.info(separator)
+
+    # Iterate over parameters and log each
+    for key in host_params:
+        host_value = format_value(host_params[key])
+        dopant_value = format_value(dopant_params[key])
+        line = f"| {key.ljust(13)} | {host_value.ljust(29)} | {dopant_value.ljust(29)} |"
+        logging.info(line)
+
+    # Log the final separator
+    logging.info(separator)
+
+
+def format_value(value):
+    """
+    Format the value based on its type (UUID or floating point number).
+    """
+    if isinstance(value, str):  # Assuming UUIDs are strings
+        return value[:3]
+    elif isinstance(value, float):
+        return f"{value:.3f}"  # todo hard-coded
+    return str(value)
+
+
+def compute_and_log_molecule_parameters(host_molecule, dopant_molecule, qp_outputs):
+    """
+    Compute parameters for host and dopant molecules and log them in a table format.
+    """
+
+    decimal_points = 3  # todo hard-coded
+
+    # Extract disorder from FILES_FOR_KMC source
+    host_disorder = qp_outputs.disorder.query_disorder_from_system_analysis(host_molecule.uuid)  # todo careful
+    dopant_disorder = qp_outputs.disorder.query_disorder_from_system_analysis(dopant_molecule.uuid)
+
+    # Adjusted IP and EA values
+    adjusted_host_ip = qp_outputs.ipea.get_ip(host_molecule.uuid) - host_molecule.lambda_ip
+    adjusted_host_ea = -qp_outputs.ipea.get_ea(host_molecule.uuid) + host_molecule.lambda_ea
+
+    adjusted_dopant_ip = qp_outputs.ipea.get_ip(dopant_molecule.uuid) - dopant_molecule.lambda_ip
+    adjusted_dopant_ea = -qp_outputs.ipea.get_ea(dopant_molecule.uuid) + dopant_molecule.lambda_ea
+
+    host_parameters = {
+        'UUID': host_molecule.uuid[:3],
+        'IP': round(adjusted_host_ip, decimal_points),
+        'EA': round(adjusted_host_ea, decimal_points),
+        'Disorder HOMO': round(host_disorder[0], decimal_points),
+        'Disorder LUMO': round(host_disorder[1], decimal_points),
+        'Lambda IP': round(host_molecule.lambda_ip, decimal_points),
+        'Lambda EA': round(host_molecule.lambda_ea, decimal_points)
+    }
+
+    dopant_parameters = {
+        'UUID': dopant_molecule.uuid[:3],
+        'IP': round(adjusted_dopant_ip, decimal_points),
+        'EA': round(adjusted_dopant_ea, decimal_points),
+        'Disorder HOMO': round(dopant_disorder[0], decimal_points),
+        'Disorder LUMO': round(dopant_disorder[1], decimal_points),
+        'Lambda IP': round(dopant_molecule.lambda_ip, decimal_points),
+        'Lambda EA': round(dopant_molecule.lambda_ea, decimal_points)
+    }
+
+    # Log the parameters in a table-like format
+    log_parameters_as_table(host_parameters, dopant_parameters)
 
 
 if __name__ == '__main__':
