@@ -61,7 +61,7 @@ experiments:
   initial_electrons: 0
   initial_holes: 0
   measurement: DC  # todo maybe remove
-  simulations: 1
+  simulations: 75
 friction: 0.1
 global_xy_dimension: true
 image_charges: 0
@@ -92,7 +92,6 @@ materials:
       , 0.15558047000085934 ] ] '
     exciton preset: doping
     is_dopant: true
-    molecule_pdb: dopant.pdb  # todo: have this by hand
   name: dopant
 - input_mode_transport: 'PAR: eaip,sig,l'
   molecule_parameters:
@@ -100,7 +99,6 @@ materials:
     energies: '[ [  5.5, 0.7839573173712232] , [ 0.1054 ,  0.1 ] , [  0.14466466, 0.2 ] ] '
     exciton preset: doping
     is_dopant: false
-    molecule_pdb: host.pdb  # todo: have this by hand
     custom_hash: f273d730b77306e88fc77abb9fa56671  
   name: host
 max_bond_noise: 0.85
