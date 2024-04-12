@@ -4,6 +4,10 @@ todo: results/experiments/particle_densities/all_data_points/ion_dopants_0.dat
 this is where doping is computed.
 ion_dop = second / first line.
 
+# todo
+# todo
+# TODO TODO TODO TODO if you set custom parameters, you still need that the dir exist (Analysis). This has to be fixed!
+
 """
 import ast
 import re
@@ -34,10 +38,11 @@ QP_SIM_PATH = BASE_PATH / 'qp/sim'
 PARA_SIM_PATH = BASE_PATH / 'para/sim'
 DEPO_SIM_PATH = BASE_PATH / 'depo/sim'
 MATERIALS = ['aNPD', 'BFDPB', 'BPAPF', 'TCTA']
-MATERIALS = ['BPAPF', 'TCTA']
+# MATERIALS = ['BFDPB', 'BPAPF', 'TCTA']
 # names of simulations folder whatever was simulated: disorder / ipea / vc. todo: weak point.
 LF_SETTINGS_TMPL_PATH = LF_SETUP_PATH / 'lf_settings_tmpl/settings.yml'
-REORGANIZATION_ENERGIES = PARA_SIM_PATH / 'lambda/reorganization_energies.csv'
+# REORGANIZATION_ENERGIES = PARA_SIM_PATH / 'lambda/reorganization_energies.csv'
+REORGANIZATION_ENERGIES = PARA_SIM_PATH / 'lambda_LH/reorganization_energies.csv'
 
 MAP_MATERIAL_TO_HOST_DOPANT_NAME = {
     'aNPD': ('aNPD', 'C60F48'),
@@ -46,7 +51,10 @@ MAP_MATERIAL_TO_HOST_DOPANT_NAME = {
     'TCTA': ('TCTA', 'C60F48')
 }
 
-VC_NAME = 'vc_new_after_dr_0.0.csv'  # this will be taken from the
+# VC_NAME = 'vc_new_after_dr_0.0.csv' # this will be taken
+VC_NAME = 'updated_vc_new_after_dr_0.0.csv' # this will be taken. include effect on vc due to increased eps.
+# VC_NAME = 'vc_for_lf.csv'  # do not make a difference between cation-anion and anion-cation.
+# VC_NAME = 'vc_for_lf.csv'  # do not make a difference between cation-anion and anion-cation; corrected because of eps. maybe, the estimation is too approx.
 # todo: 1. name is verbose. change in qp code base.
 #  2. location will be different if generated from within QP.
 #  3. the vc computed for 50 pairs with b3lyp is somewhere else.
@@ -55,16 +63,147 @@ COM_NAME = 'COM.dat'  # always from the disorder simulations of QP. maybe set an
 # this is something different because it is intended to submit the script:
 SUBMIT_FILE = '/hkfs/work/workspace/scratch/nz8308-VC/vdw_materials/light/setup/submitQP_hk'
 
+experimental_ips = {
+    'BFDPB': 5.3,
+    'aNPD': 5.45,
+    'BPAPF': 5.6,
+    'TCTA': 5.85
+}
+
+gw_nbs_extrap_ip_vacuum = {
+    'aNPD': 6.851309428950864,
+    'BFDPB': 6.712514705882352,
+    'BPAPF': 6.901298817774153,
+    'TCTA': 7.24258977149075
+}
+
+gw_cardinal_ip = {
+    'aNPD': 6.11296,
+    'BFDPB': 6.02801,
+    'BPAPF': 6.18888,
+    'TCTA': 6.36794
+}
+
+# ea of C60F48
+gw_cardinal_ea = {
+    'aNPD': 4.57809,
+    'BFDPB': 4.61549,
+    'BPAPF': 4.64139,
+    'TCTA': 4.60249
+}
+
+experimental_eas = {
+    'C60F48': 5.1,
+    'C60F36': 4.5
+}
+
+# from qp. franz method to evaluate eps.
+eps_qp_low = {
+    'aNPD': 3.21,
+    'BFDPB': 3.27,
+    'BPAPF': 3.15,
+    'TCTA': 2.90
+}
+
+# from qp, franz method to evaluate eps
+eps_qp_high = {
+    'aNPD': 3.29,
+    'BFDPB': 3.87,
+    'BPAPF': 3.29,
+    'TCTA': 2.95
+}
+
+# mean from qp.
+eps_qp_mean = {key: 0.5 * (eps_qp_low[key] + eps_qp_high[key]) for key in eps_qp_low}
+
+# this is estimated or experimental data when available.
+eps_materials_static = {
+    'aNPD': 3.5,
+    'BFDPB': 3.8,
+    'BPAPF': 3.7,
+    'TCTA': 3.46
+}
+
+ea_that_fits_bpapf = 5.5135
+
+host_disorder = {
+    'BFDPB': (0.111, 0.088),
+    'aNPD': (0.099, 0.08),
+    'BPAPF': (0.06, 0.08),
+    'TCTA': (0.117, 0.084)
+}
+
+# below, all evaluations are wrong.
+lh_ip = {
+    'BFDPB': 5.451,  # LH: 6.64. GW: 6.531. Delta: 0.11 --> 5.341  |
+    'aNPD': 5.55,  # vacuum LH: 6.78. GW: 6.67. Delta = 0.11 --> 5.44 eV (GW cardinal extr.)  | 5.97 if GW.
+    'BPAPF': 5.65,  # LH: 6.8, GW: 6.72. Delta = 0.08 --> 5.57
+    'TCTA': 5.83   # LH: 7.11, GW: 7.058. Delta = 7.11 - 7.058 = 0.052 --> 5.778
+}
+
+# this is the EA of the C60F48
+lh_ea = {
+    'aNPD': 4.8,  # 4.756 from GW bs limit vacuum + P gsp_free.
+    'BFDPB': 4.84,
+    'BPAPF': 4.86,
+    'TCTA': 4.83
+}
+
+d_eps = {
+    'aNPD': 0.5,
+    'BFDPB': 0.5,
+    'BPAPF': 0.5,
+    'TCTA': 0.5,
+    'C60F48': 0.5
+}
+
+# eps_qp_mean --> esp_qp_mean + 0.5
+dP_virb = {
+    'aNPD': 0.0479,
+    'BFDPB': 0.0375,
+    'BPAPF': 0.0375,
+    'TCTA': 0.0692,
+    'C60F48': 0.0950
+}
+
+# using eps form other papers or similar for intrinsic materials.
+custom_eps_high_freq = {
+    'aNPD': 2.79,
+    'BFDPB': 3.27,
+    'BPAPF': 3.15,
+    'TCTA': 2.49
+}
+
+# as above plut 0.5 for all materials but aNPD.
+custom_eps_low_freq = {
+    'aNPD': 3.5,
+    'BFDPB': 3.77,
+    'BPAPF': 3.65,
+    'TCTA': 3.5
+}
+
+# see custom_eps_high_freq and custom_eps_low_freq 
+dP_vibr_custom_eps = {
+    'aNPD': 0.0850,
+    'BFDPB': 0.0442,
+    'BPAPF': 0.0442,
+    'TCTA': 0.0931,
+    'C60F48': 0.0543
+}
+
+lh_ip_minus_dP_vibr = {mol:(lh_ip[mol] - dP_virb[mol]) for mol in lh_ip.keys()}  # IP decreased because of additional polarization due to vibronics.
+# lh_ea_plus_dP_vibr = {
+#     'C60F48': lh_ea['C60F48'] + dP_virb['C60F48']
+# }  # unused?
+
+gw_cardinal_ip_minus_dP_vibr_custom_eps = {mol:(gw_cardinal_ip[mol] - dP_vibr_custom_eps[mol]) for mol in gw_cardinal_ip.keys()}
+gw_cardinal_ea_plus_dP_vibr_custom_eps = {mol:(gw_cardinal_ea[mol] + dP_vibr_custom_eps[mol]) for mol in gw_cardinal_ea.keys()}
+
 
 def main():
+    # todo this specific main has to be a new script. The input above has to go.
     for material in MATERIALS:
         """
-        Plan.
-        1/ Identify host and dopants: uuid_dop, uuid_host, DMR, HMR.
-        2/ Construct QP output objects: ini + extract info.
-        3/ Change setting in LF. The ChangeSettings object has to take an object QuantumPatchOutputs. 
-        Not sure I would make it simply a list of QPO objects.
-        
         Main players:
         - host_uuid, dopant_uuid.
         - QuantumPatchOutput, short QPO.
@@ -77,7 +216,7 @@ def main():
         # todo name `material` is misleading. This is just the name of the folder. Or material identificator. It looks as if it is some complex object. But it is a string.
         create_sim_dir(material)
         copy_settings_to_sim(material)
-        copy_vc_to_sim(material)
+        copy_vc_to_sim(material, VC_NAME)
         copy_com_to_sim(material)
         modify_and_copy_submit_script(material)
         # host_dopant_uuids_and_dmr_and_hmr = return_host_dopant_uuid(material)  # old useless implementation.
@@ -87,7 +226,7 @@ def main():
                                                                       return_as='Molecule',
                                                                       dump=True)
         for mol in (host_molecule, dopant_molecule):
-            mol.add_reorganization_energy(material)  # mol knows, if it is host or dopant.
+            mol.add_reorganization_energy(material)  # mol knows if it is host or dopant.
 
         #  all qps outputs
         QPO = QuantumPatchOutputType  # short
@@ -106,10 +245,25 @@ def main():
         with ChangeLightforgeSettings(material, host_molecule, dopant_molecule, qp_outputs,
                                       depo_output) as change_settings:
             change_settings.set_host_dopant_uuid()
+            # change_settings.set_disorder(source='SystemAnalysis', manual_disorder_host=host_disorder['BPAPF'])
             change_settings.set_disorder(source='SystemAnalysis')
-            change_settings.set_ip_ea_eps(adiabatic_energies=True, manual_dopant_ea=5.5, manual_host_ip=5.3)
+            # change_settings.set_ip_ea_eps(adiabatic_energies=True,
+            #                               adiabatic_dopant_ea=ea_that_fits_bpapf,  # adiabatic already!
+            #                               adiabatic_host_ip=experimental_ips[material] + 0.548,  #0.452,
+            #                               manual_eps=eps_materials_static[material])
+            # change_settings.set_ip_ea_eps(adiabatic_energies=True,
+            #                               manual_dopant_ea=lh_ea[material],  # was this an error??
+            #                               manual_host_ip=lh_ip[material],
+            #                               manual_eps=eps_materials_static[material])
+            change_settings.set_ip_ea_eps(adiabatic_energies=True,
+                                          manual_dopant_ea=gw_cardinal_ea_plus_dP_vibr_custom_eps[material] + 0.4,
+                                          manual_dopant_ip=12.0,  # fiction
+                                          manual_host_ip=gw_cardinal_ip_minus_dP_vibr_custom_eps[material],
+                                          manual_host_ea=1.0,  # fiction
+                                          manual_eps=custom_eps_low_freq[material])
+            # change_settings.set_ip_ea_eps(adiabatic_energies=False,
+            #                               manual_eps=eps_materials_static[material])
             change_settings.set_morphology_size(pbc=False)
-            # (3) todo: change concentration of the dopant, or maybe not required.
 
             # 
             logging.info(f"Completed processing for material: {material}\n{'-' * 50}")
@@ -263,12 +417,12 @@ def copy_settings_to_sim(material: str):
         logging.error("Unexpected error:", exc_info=e)
 
 
-def copy_vc_to_sim(material: str):
+def copy_vc_to_sim(material: str, vc_name):
     """
     Copy `vc.csv` to the simulation directory of the given material.
     `vc.csv` contains data on Coulomb binding energy typically between host and dopant.
     """
-    source_path = QP_SIM_PATH / QuantumPatchOutputType.VC.value / material / 'vc_new_after_dr_0.0.csv'
+    source_path = QP_SIM_PATH / QuantumPatchOutputType.VC.value / material / vc_name
     destination_path = LF_SIM_PATH / material / 'vc.csv'
     try:
         shutil.copy2(source_path, destination_path)
@@ -613,6 +767,7 @@ class ChangeLightforgeSettings:
     class DisorderExtractionTypes(Enum):
         FILES_FOR_KMC = 'files_for_kmc'
         SYSTEM_ANALYSIS = 'SystemAnalysis'
+        MANUAL = 'manual'
 
     def __post_init__(self):
         self.yaml_file_path = LF_SIM_PATH / self.material / 'settings.yml'
@@ -685,21 +840,30 @@ class ChangeLightforgeSettings:
             f"for material {self.material}"
         )
 
-    def set_disorder(self, source: str = DisorderExtractionTypes.FILES_FOR_KMC.value):
+    def set_disorder(self, source: str = DisorderExtractionTypes.FILES_FOR_KMC.value,
+                     manual_disorder_dopant=None, manual_disorder_host=None):
         """
         for LF simulations.
         :return:
         """
 
-        disorder_sources = {
-            self.DisorderExtractionTypes.FILES_FOR_KMC.value: self.qp_outputs.disorder.query_disorder_from_files_for_kmc,
-            self.DisorderExtractionTypes.SYSTEM_ANALYSIS.value: self.qp_outputs.disorder.query_disorder_from_system_analysis
-        }
+        if manual_disorder_host is None or manual_disorder_dopant is None:
+            disorder_sources = {
+                self.DisorderExtractionTypes.FILES_FOR_KMC.value: self.qp_outputs.disorder.query_disorder_from_files_for_kmc,
+                self.DisorderExtractionTypes.SYSTEM_ANALYSIS.value: self.qp_outputs.disorder.query_disorder_from_system_analysis,
+            }
 
-        query_disorder_function = disorder_sources[source]
+            query_disorder_function = disorder_sources[source]
 
-        host_disorder = query_disorder_function(self.host.uuid)
-        dopant_disorder = query_disorder_function(self.dopant.uuid)
+        if manual_disorder_host is None:
+            host_disorder = query_disorder_function(self.host.uuid)
+        else:
+            host_disorder = manual_disorder_host
+
+        if manual_disorder_dopant is None:
+            dopant_disorder = query_disorder_function(self.dopant.uuid)
+        else:
+            dopant_disorder = manual_disorder_dopant
 
         host_energies_str = self.settings['materials'][self.host_index]['molecule_parameters']['energies']
         dopant_energies_str = self.settings['materials'][self.dopant_index]['molecule_parameters']['energies']
@@ -741,10 +905,11 @@ class ChangeLightforgeSettings:
         str_list = [str(element) for element in lst]
         return ' '.join(str_list)
 
-
-
-    def set_ip_ea_eps(self, adiabatic_energies=False, manual_host_ip=None, manual_host_ea=None,
-                          manual_dopant_ip=None, manual_dopant_ea=None):
+    def set_ip_ea_eps(self, adiabatic_energies=False,
+                      manual_host_ip=None, manual_host_ea=None,
+                      manual_dopant_ip=None, manual_dopant_ea=None,
+                      manual_eps=None,
+                      adiabatic_dopant_ea=None, adiabatic_host_ip=None):
         """
         Set IP and EA for host and dopant, with an option to manually specify these values.
 
@@ -762,6 +927,10 @@ class ChangeLightforgeSettings:
         dopant_ip = manual_dopant_ip if manual_dopant_ip is not None else ipea_data.get_ip(self.dopant.uuid)
         dopant_ea = manual_dopant_ea if manual_dopant_ea is not None else -ipea_data.get_ea(self.dopant.uuid)
 
+        print(f"Step 1: dopant_ea: {dopant_ea}")
+
+        print(f"Lambda EA = {self.dopant.lambda_ea}")
+
         # Apply adiabatic correction if needed
         if adiabatic_energies:
             host_ip -= self.host.lambda_ip
@@ -769,10 +938,22 @@ class ChangeLightforgeSettings:
             dopant_ip -= self.dopant.lambda_ip
             dopant_ea += self.dopant.lambda_ea
 
+        dopant_ea = adiabatic_dopant_ea if adiabatic_dopant_ea is not None else dopant_ea  # todo hard coded.
+        host_ip = adiabatic_host_ip if adiabatic_host_ip is not None else host_ip  # todo hard coded.
+
+        print(f"Step 2: afer lanmda added. dopant_ea + lambda: {dopant_ea}")
+
         host_ip_ea = [host_ip, host_ea]
         dopant_ip_ea = [dopant_ip, dopant_ea]
 
-        eps = 0.5 * (ipea_data.get_epsilon(self.host.uuid) + ipea_data.get_epsilon(self.dopant.uuid))
+        # breakpoint()
+
+        
+
+
+        eps = manual_eps if manual_eps is not None else 0.5 * (ipea_data.get_epsilon(self.host.uuid) + ipea_data.get_epsilon(self.dopant.uuid))
+
+        # todo: maybe not that good to have it here rather than above!
 
         # Retrieve existing lambda and disorder values from settings
         host_energies = self.convert_string_to_list(
@@ -780,9 +961,13 @@ class ChangeLightforgeSettings:
         dopant_energies = self.convert_string_to_list(
             self.settings['materials'][self.dopant_index]['molecule_parameters']['energies'])
 
-        # Update settings with IP/EA, disorder, and lambda values
+        # Update settings with IP/EA
         host_energies[0] = host_ip_ea
         dopant_energies[0] = dopant_ip_ea
+
+        # Update settings with lambda_value
+        host_energies[2] = [self.host.lambda_ip, self.host.lambda_ea]
+        dopant_energies[2] = [self.dopant.lambda_ip, self.dopant.lambda_ea]
 
         host_energies_str = self.convert_list_to_string_with_brackets(host_energies)
         dopant_energies_str = self.convert_list_to_string_with_brackets(dopant_energies)
@@ -797,7 +982,6 @@ class ChangeLightforgeSettings:
             f"Dielectric permittivity set to {eps} "
             f"for material {self.material}"
         )
-
 
     def set_morphology_size(self, pbc=False):
         """
@@ -880,9 +1064,10 @@ def format_value(value):
 
 def compute_and_log_molecule_parameters(host_molecule, dopant_molecule, qp_outputs):
     """
-    Compute parameters for host and dopant molecules and log them in a table format.
+    Compute (actually re-compute, which is a problem) parameters for host and dopant molecules and log them in a table format.
     """
     # todo: IP/EA if manually set will not be correct here. Read everything from the setting file!
+    # todo: other parameters are also in danger!
     decimal_points = 3
 
     # Extract disorder from FILES_FOR_KMC source
@@ -890,34 +1075,46 @@ def compute_and_log_molecule_parameters(host_molecule, dopant_molecule, qp_outpu
     dopant_disorder = qp_outputs.disorder.query_disorder_from_system_analysis(dopant_molecule.uuid)
 
     # Adjusted IP and EA values
-    adjusted_host_ip = qp_outputs.ipea.get_ip(host_molecule.uuid) - host_molecule.lambda_ip
-    adjusted_host_ea = -qp_outputs.ipea.get_ea(host_molecule.uuid) + host_molecule.lambda_ea
+    try:
+        adjusted_host_ip = qp_outputs.ipea.get_ip(host_molecule.uuid) - host_molecule.lambda_ip
+        adjusted_host_ea = -qp_outputs.ipea.get_ea(host_molecule.uuid) + host_molecule.lambda_ea
 
-    adjusted_dopant_ip = qp_outputs.ipea.get_ip(dopant_molecule.uuid) - dopant_molecule.lambda_ip
-    adjusted_dopant_ea = -qp_outputs.ipea.get_ea(dopant_molecule.uuid) + dopant_molecule.lambda_ea
+        adjusted_dopant_ip = qp_outputs.ipea.get_ip(dopant_molecule.uuid) - dopant_molecule.lambda_ip
+        adjusted_dopant_ea = -qp_outputs.ipea.get_ea(dopant_molecule.uuid) + dopant_molecule.lambda_ea
 
-    host_parameters = {
-        'UUID': host_molecule.uuid[:3],
-        'IP': round(adjusted_host_ip, decimal_points),
-        'EA': round(adjusted_host_ea, decimal_points),
-        'Disorder HOMO': round(host_disorder[0], decimal_points),
-        'Disorder LUMO': round(host_disorder[1], decimal_points),
-        'Lambda IP': round(host_molecule.lambda_ip, decimal_points),
-        'Lambda EA': round(host_molecule.lambda_ea, decimal_points)
-    }
+        # Retrieve dielectric permittivity (eps) for host and dopant
+        host_eps = qp_outputs.ipea.get_epsilon(host_molecule.uuid)
+        dopant_eps = qp_outputs.ipea.get_epsilon(dopant_molecule.uuid)
 
-    dopant_parameters = {
-        'UUID': dopant_molecule.uuid[:3],
-        'IP': round(adjusted_dopant_ip, decimal_points),
-        'EA': round(adjusted_dopant_ea, decimal_points),
-        'Disorder HOMO': round(dopant_disorder[0], decimal_points),
-        'Disorder LUMO': round(dopant_disorder[1], decimal_points),
-        'Lambda IP': round(dopant_molecule.lambda_ip, decimal_points),
-        'Lambda EA': round(dopant_molecule.lambda_ea, decimal_points)
-    }
+        # Calculate the average dielectric permittivity
+        average_eps = (host_eps + dopant_eps) / 2
 
-    # Log the parameters in a table-like format
-    log_parameters_as_table(host_parameters, dopant_parameters)
+        host_parameters = {
+            'UUID': host_molecule.uuid[:3],
+            'IP': round(adjusted_host_ip, decimal_points),
+            'EA': round(adjusted_host_ea, decimal_points),
+            'Disorder HOMO': round(host_disorder[0], decimal_points),
+            'Disorder LUMO': round(host_disorder[1], decimal_points),
+            'Lambda IP': round(host_molecule.lambda_ip, decimal_points),
+            'Lambda EA': round(host_molecule.lambda_ea, decimal_points),
+            'Eps': round(average_eps, decimal_points),
+        }
+
+        dopant_parameters = {
+            'UUID': dopant_molecule.uuid[:3],
+            'IP': round(adjusted_dopant_ip, decimal_points),
+            'EA': round(adjusted_dopant_ea, decimal_points),
+            'Disorder HOMO': round(dopant_disorder[0], decimal_points),
+            'Disorder LUMO': round(dopant_disorder[1], decimal_points),
+            'Lambda IP': round(dopant_molecule.lambda_ip, decimal_points),
+            'Lambda EA': round(dopant_molecule.lambda_ea, decimal_points),
+            'Eps': round(average_eps, decimal_points),
+        }
+
+        # Log the parameters in a table-like format
+        log_parameters_as_table(host_parameters, dopant_parameters)
+    except TypeError:
+        logging.error("I could not make log info probably because I used the custom data ... ")
 
 
 if __name__ == '__main__':
