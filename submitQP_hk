@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=75
+#SBATCH -t 0-01:00:00
+#SBATCH -e stderr
+#SBATCH -o stdout
+#SBATCH --mail-type=FAIL,END
+#SBATCH -J aNPD
+#SBATCH --mail-user=artem.fediai@nanomatch.com
+#SBATCH --partition dev_cpuonly
+#SBATCH -A hk-project-doled
+set -e
+
+export NANOMATCH=/home/hk-project-zimnano/nz8308/nanomatch
+export NANOVER=V6
+#source $NANOMATCH/$NANOVER/configs/quantumpatch.config
+source $NANOMATCH/$NANOVER/configs/lightforge.config
+export FI_PROVIDER=sockets
+export OMP_NUM_THREADS=1
+export LFPATH=$NANOMATCH/$NANOVER/lightforge
+
+
+cd ${SLURM_SUBMIT_DIR}
+
+#export SHREDDERPATH=/home/hk-project-zimnano/nz8308/nanomatch/V6/QP_master
+#$OPENMPI_PATH/bin/mpirun -x CONDA_PREFIX --oversubscribe --bind-to none $ENVCOMMAND --hostfile $HOSTFILE --mca btl self,vader,tcp python -m mpi4py $SHREDDERPATH/QuantumPatchNG.py >> progress.txt 2> shredder_mpi_stderr
+
+$OPENMPI_PATH/bin/mpirun --bind-to none $ENVCOMMAND --hostfile $HOSTFILE --mca btl self,vader,tcp python -m mpi4py $LFPATH/lightforge.py -s settings.yml -n 30000
