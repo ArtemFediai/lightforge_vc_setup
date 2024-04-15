@@ -1,0 +1,37 @@
+base_path: "/hkfs/work/workspace/scratch/nz8308-VC/vdw_materials/"
+simulation_paths:
+  lightforge_setup: "light/setup"
+  lightforge_sim: "light/sim"
+  quantum_patch_setup: "qp/set_up"
+  quantum_patch_sim: "qp/sim"
+  parameter_sim: "para/sim"
+  deposition_sim: "depo/sim"
+
+materials:
+  - aNPD
+  - BFDPB
+  - BPAPF
+  - TCTA
+
+map_material_to_host_dopant_name:
+  aNPD: ["aNPD", "C60F48"]
+  BFDPB: ["BFDPB", "C60F48"]
+  BPAPF: ["BPAPF", "C60F48"]
+  TCTA: ["TCTA", "C60F48"]
+
+reorganization_energies: "para/sim/lambda_LH/reorganization_energies.csv"
+vc_name: "updated_vc_new_after_dr_0.0.csv"
+
+physical_properties:
+  experimental_ips:
+    BFDPB: 5.3
+    aNPD: 5.45
+    BPAPF: 5.6
+    TCTA: 5.85
+  eps_qp_low:
+    aNPD: 3.21
+    BFDPB: 3.27
+    BPAPF: 3.15
+    TCTA: 2.90
+
+submit_file: "/hkfs/work/workspace/scratch/nz8308-VC/vdw_materials/light/setup/submitQP_hk"
